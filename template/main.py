@@ -14,6 +14,7 @@ from sklearn import metrics
 from gspan_mining import gSpan
 from gspan_mining import GraphDatabase
 from bisect import insort
+import os
 
 
 class PatternGraphs:
@@ -69,7 +70,7 @@ class FrequentGraphs(PatternGraphs):
 		self.minsup = minsup
 		self.gid_subsets = subsets
 		self.k = k
-		self.conf = set() # top k confidence values
+		self.nb_top = 0 # nb top k items
 
 	def compare_pattern_with_bests(self, confidence, support, method):
 		if method == "same_freq":
@@ -96,24 +97,19 @@ class FrequentGraphs(PatternGraphs):
 
 		# if same conf but higher freq than top k item then delete top item and add new
 		elif self.compare_pattern_with_bests(confidence, support, "low_freq"):
-			self.patterns = [i for i in self.patterns if i[0] != confidence or i[1] != support]
+			self.patterns = [i for i in self.patterns if i[0] != confidence]
 			insort(self.patterns, [confidence, support, dfs_code])
 
 		# new confidence and not yet k best items
-		elif len(self.conf) < self.k:
+		elif self.nb_top < self.k:
 			insort(self.patterns, [confidence, support, dfs_code]) # sort on confidence, then support
-			self.conf.add(confidence)
-			self.conf = set(sorted(self.conf))
+			self.nb_top += 1
 
 		# already k top items
-		elif len(self.conf) == self.k:
+		elif self.nb_top == self.k:
 			# confidence of new item is higher than the lowest confidence in top k items
-			if list(self.conf)[0] < confidence:
-				self.patterns = [i for i in self.patterns if i[0] > list(self.conf)[0]]
-				self.conf.discard(list(self.conf)[0])
-				self.conf.add(confidence)
-				self.conf = set(sorted(self.conf))
-				# assert len(self.conf) == self.k
+			if self.patterns[0][0] < confidence:
+				self.patterns = [i for i in self.patterns if i[0] > self.patterns[0][0]]
 				insort(self.patterns, [confidence, support, dfs_code])
 
 	# Prunes any pattern that is not frequent in the both classes
@@ -122,11 +118,12 @@ class FrequentGraphs(PatternGraphs):
 
 
 if __name__ == '__main__':
+	# "./data/molecules-small.pos"
 	args = sys.argv
-	database_file_name_pos = "./data/molecules-small.pos"  # First parameter: path to positive class file
-	database_file_name_neg = "./data/molecules-small.neg"  # Second parameter: path to negative class file
-	k = 5  # Third parameter: k
-	minsup = 5  # Fourth parameter: minimum support
+	database_file_name_pos = args[1]  # First parameter: path to positive class file
+	database_file_name_neg = args[2]  # Second parameter: path to negative class file
+	k = int(args[3])  # Third parameter: k
+	minsup = int(args[4])  # Fourth parameter: minimum support
 
 	if not os.path.exists(database_file_name_pos):
 		print('{} does not exist.'.format(database_file_name_pos))
@@ -144,8 +141,8 @@ if __name__ == '__main__':
 
 	gSpan(task).run()  # Running gSpan
 
-	# Printing frequent patterns along with their confidence and total support:
 	for pattern in task.patterns:
 		support = pattern[1]
 		confidence = pattern[0]
 		print('{} {} {}'.format(pattern[2], confidence, support))
+	
