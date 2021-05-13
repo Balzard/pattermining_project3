@@ -14,7 +14,7 @@ from sklearn import metrics
 from gspan_mining import gSpan
 from gspan_mining import GraphDatabase
 from bisect import insort
-import os
+import os, math
 
 
 class PatternGraphs:
@@ -95,26 +95,29 @@ class FrequentGraphs(PatternGraphs):
 		if self.compare_pattern_with_bests(confidence, support, "same_freq"):
 			insort(self.patterns, [confidence, support, dfs_code])
 
-		# if same conf but higher freq than top k item then delete top item and add new
-		elif self.compare_pattern_with_bests(confidence, support, "low_freq"):
-			self.patterns = [i for i in self.patterns if i[0] != confidence]
-			insort(self.patterns, [confidence, support, dfs_code])
+		# already k top items
+		elif self.nb_top == self.k:
+			# confidence of new item is higher than the lowest confidence in top k items
+			if self.patterns[0][0] < confidence:
+				self.patterns = [i for i in self.patterns if i[0] != self.patterns[0][0] or i[1] != self.patterns[0][1]]
+				insort(self.patterns, [confidence, support, dfs_code])
+
+			# if same conf but higher freq than a top k item then delete top item and add new
+			elif self.patterns[0][0] == confidence and self.compare_pattern_with_bests(confidence, support, "low_freq"):
+				self.patterns = [i for i in self.patterns if i[0] != self.patterns[0][0] or i[1] != self.patterns[0][1]]
+				insort(self.patterns, [confidence, support, dfs_code])
 
 		# new confidence and not yet k best items
 		elif self.nb_top < self.k:
 			insort(self.patterns, [confidence, support, dfs_code]) # sort on confidence, then support
 			self.nb_top += 1
 
-		# already k top items
-		elif self.nb_top == self.k:
-			# confidence of new item is higher than the lowest confidence in top k items
-			if self.patterns[0][0] < confidence:
-				self.patterns = [i for i in self.patterns if i[0] > self.patterns[0][0]]
-				insort(self.patterns, [confidence, support, dfs_code])
-
 	# Prunes any pattern that is not frequent in the both classes
 	def prune(self, gid_subsets):
-		return len(gid_subsets[0]) + len(gid_subsets[1]) < self.minsup
+		p = len(gid_subsets[0])
+		n = len(gid_subsets[1])
+		support = p + n
+		return support < self.minsup
 
 
 if __name__ == '__main__':
@@ -124,6 +127,7 @@ if __name__ == '__main__':
 	database_file_name_neg = args[2]  # Second parameter: path to negative class file
 	k = int(args[3])  # Third parameter: k
 	minsup = int(args[4])  # Fourth parameter: minimum support
+
 
 	if not os.path.exists(database_file_name_pos):
 		print('{} does not exist.'.format(database_file_name_pos))
@@ -145,4 +149,7 @@ if __name__ == '__main__':
 		support = pattern[1]
 		confidence = pattern[0]
 		print('{} {} {}'.format(pattern[2], confidence, support))
+
+
+
 	
